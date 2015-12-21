@@ -9,11 +9,11 @@ module Jekyll
     # ex. "_sites/index.html" => "/index.html"
     def self.search_page(site, url)
       result = site.pages.find {|item| item.url == url}
-      if result != nil
+      if !result.nil?
         return result
       end
       result = site.posts.docs.find {|item| item.url == url}
-      if result != nil
+      if !result.nil?
         return result
       end
       for collection in site.collections
@@ -23,22 +23,6 @@ module Jekyll
         end
       end
       return nil
-    end
-
-    # 対象のURLを持つパスを出力する。
-    # パスは出力するパス(_site)からの絶対パスで指定する。
-    def self.print_pages(site)
-      for page in site.pages
-        p page.url
-      end
-      for page in site.posts.docs
-        p page.url
-      end
-      for collection in site.collections
-        for page in collection[1].docs
-          p page.url
-        end
-      end
     end
   end
 
@@ -209,7 +193,7 @@ module Jekyll
       site.collections.each do |tag, tag_pages|
         tag_array << tag
       end
-      tag_array.sort!
+      tag_array.select! {|item| item != 'posts' }.sort!
 
       tagcloud = "<ul class=\"collection-list\">"
       tag_array.each do |tag|
