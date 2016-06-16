@@ -1,7 +1,10 @@
 # coding: utf-8
 #
 # Collectionのナビゲーション
-#
+# @author 在望もむ
+# @date 2015/11/22
+
+# Jekyllプラグイン
 module Jekyll
   class Misc
     # 対象のURLを持つパスを探索する。
@@ -171,7 +174,6 @@ module Jekyll
   end
 
   class CollectionPageGenerator < Generator
-
     safe true
 
     def generate(site)
@@ -181,24 +183,59 @@ module Jekyll
     end
   end
 
-  class CollectionList < Liquid::Tag
+  # コレクション名取得クラス
+  class CollectionList
+    # コレクション名取得
+    def create(context)
+      collection_list = Array.new([])
+      site = context.registers[:site]
+      site.collections.each do |tag, pages|
+        # Jekyll 3.x以降はpostsもcollectionsとなったため、これを除外する
+        if tag == 'posts'
+          next
+        end
+        title = (site.config['collections'][tag]['name'] == nil) ? tag : site.config['collections'][tag]['name']
+        collection_list << {'title' => title, 'url' => '/' + site.baseurl + tag + '/index.html'}
+      end
 
+      return collection_list
+    end
+  end
+
+
+  # パンくずリスト出力ブロック
+  class CollectionListBlock < Liquid::Block
+    # 初期化フック処理
+    # @param  [String]  name  名前
+    # @param  [String]  text  テキスト
+    # @param  [String]  tokens  トークン
+    def initialize(name, text, tokens)
+      super
+    end
+
+    # ページ毎実施処理
+    # @param  [Misc]  context コンテキスト
+    def render(context)
+      collection_list = CollectionList.new()
+      list = collection_list.create(context)
+      context.stack do
+        context['entries'] = list
+        return super
+      end
+    end
+  end
+
+  class CollectionListTag < Liquid::Tag
     def initialize(tag_name, text, tokens)
       super
     end
 
     def render(context)
-      tag_array = []
-      site = context.registers[:site]
-      site.collections.each do |tag, tag_pages|
-        tag_array << tag
-      end
-      tag_array.select! {|item| item != 'posts' }.sort!
-
-      tagcloud = "<ul class=\"collection-list\">"
-      tag_array.each do |tag|
-        tag_name = (site.config['collections'][tag]['name'] == nil) ? tag : site.config['collections'][tag]['name']
-        tagcloud << "<li><a href='#{site.baseurl}/collections/#{tag}/index.html'>#{tag_name}</a></li>"
+      collection_list = CollectionList.new()
+      list = collection_list.create(context)
+      tagcloud = '<ul class="collection-list">'
+      list.each do |item|
+        tagcloud << "<li><a href=\"#{item['url']}\">#{item['title']}</a></li>"
       end
       tagcloud << "</ul>"
       "#{tagcloud}"
@@ -227,4 +264,5 @@ module Jekyll
 end
 
 Liquid::Template.register_tag('collection_navi', Jekyll::CollectionNavi)
-Liquid::Template.register_tag('collection_list', Jekyll::CollectionList)
+Liquid::Template.register_tag('collection_list', Jekyll::CollectionListTag)
+Liquid::Template.register_tag('collection_name_list', Jekyll::CollectionListBlock)
