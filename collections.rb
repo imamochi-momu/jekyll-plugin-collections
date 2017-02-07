@@ -110,7 +110,7 @@ module Jekyll
       @base_path = '/' + @tag + '/index.html'
       self.process(name)
       self.read_yaml(File.join(base, '_layouts'), 'collection.html')
-      self.data['title'] = "Collection:#{@tag_name}"
+      self.data['title'] = "#{@tag_name}"
       self.data['posts'] = site.collections[tag].docs
       self.data['tag'] = tag
       self.data['title_detail'] = @tag_name + 'の記事一覧'
@@ -132,12 +132,12 @@ module Jekyll
       endflag = true
       page = @h[@index].page
       while endflag == true
-        if page.nil? || page.data.nil? || page.data['next'].nil?
+        if page.nil? || page.data.nil? || page.data['link_next'].nil?
           # 次の下層ページを確認する。
           next_down_exist()
           return
         end
-        @base_path = File.dirname(@base_path) + '/' + page.data['next'] + '.html'
+        @base_path = File.dirname(@base_path) + '/' + page.data['link_next'] + '.html'
         result = Misc.search_page(@site, @base_path)
         if result
           @h << CollectionPageNest.new(@level, result)
@@ -157,11 +157,11 @@ module Jekyll
     def next_down_exist()
       @level += 1
       page = @h[@index].page
-      if page.nil? || page.data['down'].nil?
+      if page.nil? || page.data['link_down'].nil?
         @level -= 1
         return
       end
-      @base_path = File.dirname(@base_path) + '/' + page.data['down'] + '.html'
+      @base_path = File.dirname(@base_path) + '/' + page.data['link_down'] + '.html'
       result = Misc.search_page(@site, @base_path)
       if result
         @index += 1
