@@ -29,6 +29,105 @@ module Jekyll
     end
   end
 
+  # コレクションページをLiquildで出力できるようにする
+  class CollectionPageNest < Liquid::Drop
+    attr_accessor :level, :page
+    # コンストラクタ
+    def initialize(level, page)
+      @level = level
+      @page = page
+    end
+  end
+
+  # コレクション名取得クラス
+  class CollectionList
+    # コレクション名取得
+    def create(context)
+      list = Array.new([])
+      site = context.registers[:site]
+      site.collections.each do |tag, pages|
+        # Jekyll 3.x以降はpostsもcollectionsとなったため、これを除外する
+        if tag == 'posts'
+          next
+        end
+        title = (site.config['collections'][tag]['name'] == nil) ? tag : site.config['collections'][tag]['name']
+        list << {'title' => title, 'url' => '/' + site.baseurl + tag + '/index.html'}
+      end
+
+      return list
+    end
+  end
+
+  # 指定したコレクション名の一覧を生成
+  class CollectionItems
+    def initialize(site, name)
+      @site = site
+      @name = name
+    end
+
+    # 初期化処理
+    def create()
+      @base_path = '/' + @name + '/index.html'
+      @tag_name = (@site.config['collections'][@name]['name'] == nil) ? tag : @site.config['collections'][@name]['name']
+
+      @h = Array.new([])
+      @index = 0
+      @level = 0
+      # indexを探索
+      result = Misc.search_page(@site, @base_path)
+      if result
+        @h << CollectionPageNest.new(@level, result)
+        # 以降を追加
+        next_exist()
+      end
+      return @h
+    end
+
+    def next_exist()
+      endflag = true
+      page = @h[@index].page
+      while endflag == true
+        if page.nil? || page.data.nil? || page.data['link_next'].nil?
+          # 次の下層ページを確認する。
+          next_down_exist()
+          return
+        end
+        @base_path = File.dirname(@base_path) + '/' + page.data['link_next'] + '.html'
+        result = Misc.search_page(@site, @base_path)
+        if result
+          @h << CollectionPageNest.new(@level, result)
+          @index += 1
+          page = @h[@index].page
+          save = @index
+          # 次の下層ページを確認する。
+          next_down_exist()
+          page = @h[save].page
+          endflag = true
+        else
+          endflag = false
+        end
+      end
+    end
+
+    def next_down_exist()
+      @level += 1
+      page = @h[@index].page
+      if page.nil? || page.data['link_down'].nil?
+        @level -= 1
+        return
+      end
+      @base_path = File.dirname(@base_path) + '/' + page.data['link_down'] + '.html'
+      result = Misc.search_page(@site, @base_path)
+      if result
+        @index += 1
+        @h << CollectionPageNest.new(@level, result)
+        next_exist()
+        @base_path = File.dirname(@base_path)
+      end
+      @level -= 1
+    end
+  end
+
   class CollectionNavi < Liquid::Tag
     # 初期化する
     def initialize(tag_name, text, tokens)
@@ -84,16 +183,6 @@ module Jekyll
         return true
       end
       return false
-    end
-  end
-
-  # コレクションページをLiquildで出力できるようにする
-  class CollectionPageNest < Liquid::Drop
-    attr_accessor :level, :page
-    # コンストラクタ
-    def initialize(level, page)
-      @level = level
-      @page = page
     end
   end
 
@@ -183,26 +272,6 @@ module Jekyll
     end
   end
 
-  # コレクション名取得クラス
-  class CollectionList
-    # コレクション名取得
-    def create(context)
-      collection_list = Array.new([])
-      site = context.registers[:site]
-      site.collections.each do |tag, pages|
-        # Jekyll 3.x以降はpostsもcollectionsとなったため、これを除外する
-        if tag == 'posts'
-          next
-        end
-        title = (site.config['collections'][tag]['name'] == nil) ? tag : site.config['collections'][tag]['name']
-        collection_list << {'title' => title, 'url' => '/' + site.baseurl + tag + '/index.html'}
-      end
-
-      return collection_list
-    end
-  end
-
-
   # パンくずリスト出力ブロック
   class CollectionListBlock < Liquid::Block
     # 初期化フック処理
@@ -240,29 +309,48 @@ module Jekyll
       tagcloud << "</ul>"
       "#{tagcloud}"
     end
+  end
 
-    class CollectionListPage < Page
-      def initialize(site, base, dir)
-        @site = site
-        @base = base
-        @dir  = dir
-        @name = 'index.html'
-        self.process(name)
-        self.read_yaml(File.join(base, '_layouts'), 'collection_list.html')
-        self.data['title'] = (site.config['collection-list'] == nil || site.config['collection-list']['name'] == nil) ? "コレクション一覧" : site.config['collection-list']['name']
-        self.data['posts'] = site.documents
-      end
+  class CollectionItemsTag < Liquid::Tag
+    def initialize(tag_name, text, tokens)
+      @text = text.strip!
+      super
     end
 
-    class CollectionListGenerator < Generator
-      safe true
-      def generate(site)
-        site.pages << CollectionListPage.new(site, site.source, 'collection_list')
+    def render(context)
+      items = CollectionItems.new(context.registers[:site], @text)
+      list = items.create()
+      output = '<ul>'
+      list.each do |item|
+        output << "<li class=\"nest#{item.level}\"><a href=\"#{item.page.url}\">#{item.page['title']}</a></li>"
       end
+      output << "</ul>"
+      "#{output}"
+    end
+  end
+
+  class CollectionListPage < Page
+    def initialize(site, base, dir)
+      @site = site
+      @base = base
+      @dir  = dir
+      @name = 'index.html'
+      self.process(name)
+      self.read_yaml(File.join(base, '_layouts'), 'collection_list.html')
+      self.data['title'] = (site.config['collection-list'] == nil || site.config['collection-list']['name'] == nil) ? "コレクション一覧" : site.config['collection-list']['name']
+      self.data['posts'] = site.documents
+    end
+  end
+
+  class CollectionListGenerator < Generator
+    safe true
+    def generate(site)
+      site.pages << CollectionListPage.new(site, site.source, 'collection_list')
     end
   end
 end
 
 Liquid::Template.register_tag('collection_navi', Jekyll::CollectionNavi)
 Liquid::Template.register_tag('collection_list', Jekyll::CollectionListTag)
+Liquid::Template.register_tag('collection_items', Jekyll::CollectionItemsTag)
 Liquid::Template.register_tag('collection_name_list', Jekyll::CollectionListBlock)
